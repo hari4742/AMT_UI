@@ -8,16 +8,15 @@ import {
   Chip,
   Grid,
 } from '@mui/material';
-import { CheckCircle, CompareArrows, Download } from '@mui/icons-material';
+import { CheckCircle, Download } from '@mui/icons-material';
 import { useAppSelector } from '@/store/hooks';
+import CompareButton from '@/components/CompareButton/CompareButton';
 
 interface TranscriptionSuccessProps {
-  onCompare: () => void;
   onDownload?: () => void;
 }
 
 const TranscriptionSuccess: React.FC<TranscriptionSuccessProps> = ({
-  onCompare,
   onDownload,
 }) => {
   const { midiData } = useAppSelector((state) => state.transcription);
@@ -89,14 +88,7 @@ const TranscriptionSuccess: React.FC<TranscriptionSuccessProps> = ({
 
       {/* Action Buttons */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={<CompareArrows />}
-          onClick={onCompare}
-        >
-          Compare with Original MIDI
-        </Button>
+        <CompareButton />
 
         {onDownload && (
           <Button

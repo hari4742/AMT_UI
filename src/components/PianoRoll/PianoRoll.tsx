@@ -14,6 +14,7 @@ interface PianoRollProps {
   scrollY?: number;
   onScrollChange?: (scrollX: number, scrollY: number) => void;
   onZoomChange?: (zoom: number) => void;
+  isSynchronized?: boolean; // For comparison mode
 }
 
 interface PianoRollState {
@@ -37,6 +38,7 @@ const PianoRoll: React.FC<PianoRollProps> = ({
   scrollY: externalScrollY,
   onScrollChange,
   onZoomChange,
+  isSynchronized = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -246,43 +248,59 @@ const PianoRoll: React.FC<PianoRollProps> = ({
         }
       }
 
-      // Start dragging
-      setState((prev) => ({
-        ...prev,
-        isDragging: true,
-        lastMouseX: x,
-        lastMouseY: y,
-      }));
+      // Start dragging (only if not synchronized)
+      if (!isSynchronized) {
+        setState((prev) => ({
+          ...prev,
+          isDragging: true,
+          lastMouseX: x,
+          lastMouseY: y,
+        }));
+      } else if (onScrollChange) {
+        // For synchronized mode, notify parent
+        onScrollChange(x, y);
+      }
     },
-    [zoom, scrollX, scrollY, visibleNotes, onNoteClick]
+    [
+      zoom,
+      scrollX,
+      scrollY,
+      visibleNotes,
+      onNoteClick,
+      isSynchronized,
+      onScrollChange,
+    ]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!state.isDragging) return;
-
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
 
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      const deltaX = x - state.lastMouseX;
-      const deltaY = y - state.lastMouseY;
+      if (!isSynchronized && state.isDragging) {
+        const deltaX = x - state.lastMouseX;
+        const deltaY = y - state.lastMouseY;
 
-      const newScrollX = scrollX - deltaX;
-      const newScrollY = scrollY - deltaY;
+        const newScrollX = scrollX - deltaX;
+        const newScrollY = scrollY - deltaY;
 
-      if (onScrollChange) {
-        onScrollChange(newScrollX, newScrollY);
-      } else {
-        setState((prev) => ({
-          ...prev,
-          scrollX: newScrollX,
-          scrollY: newScrollY,
-          lastMouseX: x,
-          lastMouseY: y,
-        }));
+        if (onScrollChange) {
+          onScrollChange(newScrollX, newScrollY);
+        } else {
+          setState((prev) => ({
+            ...prev,
+            scrollX: newScrollX,
+            scrollY: newScrollY,
+            lastMouseX: x,
+            lastMouseY: y,
+          }));
+        }
+      } else if (isSynchronized && onScrollChange) {
+        // For synchronized mode, notify parent of mouse movement
+        onScrollChange(x, y);
       }
     },
     [
@@ -292,15 +310,18 @@ const PianoRoll: React.FC<PianoRollProps> = ({
       scrollX,
       scrollY,
       onScrollChange,
+      isSynchronized,
     ]
   );
 
   const handleMouseUp = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      isDragging: false,
-    }));
-  }, []);
+    if (!isSynchronized) {
+      setState((prev) => ({
+        ...prev,
+        isDragging: false,
+      }));
+    }
+  }, [isSynchronized]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {

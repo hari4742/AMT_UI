@@ -15,11 +15,9 @@ import { setAudioFile, setError } from '@/store/slices/transcriptionSlice';
 import { useTranscription } from '@/hooks/useTranscription';
 import TranscriptionProgress from '@/components/TranscriptionProgress/TranscriptionProgress';
 import TranscriptionSuccess from '@/components/TranscriptionSuccess/TranscriptionSuccess';
-import { useNavigate } from 'react-router-dom';
 
 const AudioUploader = () => {
   const dispatch = useAppDispatch();
-  const navigate = useNavigate();
   const { audioFile, error, midiData } = useAppSelector(
     (state) => state.transcription
   );
@@ -105,10 +103,6 @@ const AudioUploader = () => {
     } catch (error) {
       console.error('Failed to start transcription:', error);
     }
-  };
-
-  const handleCompare = () => {
-    navigate('/compare');
   };
 
   const handleDownload = () => {
@@ -228,10 +222,7 @@ const AudioUploader = () => {
       )}
 
       {midiData && !isTranscribing && (
-        <TranscriptionSuccess
-          onCompare={handleCompare}
-          onDownload={handleDownload}
-        />
+        <TranscriptionSuccess onDownload={handleDownload} />
       )}
     </Box>
   );
