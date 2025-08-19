@@ -1,7 +1,14 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+export interface SelectedFileInfo {
+  name: string;
+  size: number;
+  type: string;
+  lastModified: number;
+}
+
 interface ComparisonState {
-  originalMidiFile: File | null;
+  originalMidiFile: SelectedFileInfo | null;
   originalMidiData: any | null;
   isComparing: boolean;
   error: string | null;
@@ -18,7 +25,7 @@ const comparisonSlice = createSlice({
   name: 'comparison',
   initialState,
   reducers: {
-    setOriginalMidiFile: (state, action: PayloadAction<File>) => {
+    setOriginalMidiFile: (state, action: PayloadAction<SelectedFileInfo>) => {
       state.originalMidiFile = action.payload;
       state.error = null;
     },

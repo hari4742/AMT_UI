@@ -1,58 +1,7 @@
 // MIDI Processing Utilities
 // Handles MIDI file parsing, validation, and conversion to note events
 
-// Note: @tonejs/midi will be installed later
-// For now, we'll define the types we need
-interface MidiNote {
-  midi: number;
-  name: string;
-  velocity: number;
-  time: number;
-  duration: number;
-}
-
-interface MidiTrack {
-  name?: string;
-  channel?: number;
-  notes: MidiNote[];
-}
-
-interface MidiHeader {
-  tempos: Array<{ bpm: number }>;
-  timeSignatures: Array<{ timeSignature: [number, number] }>;
-}
-
-interface Midi {
-  tracks: MidiTrack[];
-  duration: number;
-  header: MidiHeader;
-}
-
-// Mock Midi class for development until @tonejs/midi is installed
-class MockMidi implements Midi {
-  tracks: MidiTrack[] = [];
-  duration: number = 0;
-  header: MidiHeader = {
-    tempos: [{ bpm: 120 }],
-    timeSignatures: [{ timeSignature: [4, 4] }],
-  };
-
-  constructor(data: ArrayBuffer) {
-    // Mock implementation - will be replaced with real @tonejs/midi
-    this.tracks = [
-      {
-        name: 'Track 1',
-        channel: 0,
-        notes: [
-          { midi: 60, name: 'C4', velocity: 80, time: 0, duration: 0.5 },
-          { midi: 62, name: 'D4', velocity: 80, time: 0.5, duration: 0.5 },
-          { midi: 64, name: 'E4', velocity: 80, time: 1, duration: 0.5 },
-        ],
-      },
-    ];
-    this.duration = 2;
-  }
-}
+import { Midi as ToneMidi } from '@tonejs/midi';
 
 export interface ProcessedNote {
   id: string;
@@ -87,10 +36,20 @@ export class MidiProcessor {
    * Parse MIDI data from base64 string or ArrayBuffer
    */
   static async parseMidiData(
-    data: string | ArrayBuffer
+    data: string | ArrayBuffer | Uint8Array | ProcessedMidiData
   ): Promise<ProcessedMidiData> {
     try {
-      let midiData: ArrayBuffer;
+      // If the input already looks like processed MIDI, return it as-is
+      if (
+        typeof data === 'object' &&
+        data !== null &&
+        Array.isArray((data as any).notes) &&
+        Array.isArray((data as any).tracks)
+      ) {
+        return data as ProcessedMidiData;
+      }
+
+      let midiSource: ArrayBuffer | Uint8Array;
 
       if (typeof data === 'string') {
         // Convert base64 to ArrayBuffer
@@ -99,13 +58,17 @@ export class MidiProcessor {
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-        midiData = bytes.buffer;
+        midiSource = bytes;
+      } else if (data instanceof Uint8Array) {
+        midiSource = data;
+      } else if (data instanceof ArrayBuffer) {
+        midiSource = new Uint8Array(data);
       } else {
-        midiData = data;
+        throw new Error('Unsupported MIDI data type');
       }
 
-      // Parse MIDI using @tonejs/midi (or mock for now)
-      const midi = new MockMidi(midiData);
+      // Parse MIDI using @tonejs/midi
+      const midi = new ToneMidi(midiSource);
 
       return this.processMidi(midi);
     } catch (error) {
@@ -117,20 +80,21 @@ export class MidiProcessor {
   /**
    * Process parsed MIDI data into our standardized format
    */
-  private static processMidi(midi: Midi): ProcessedMidiData {
+  private static processMidi(midi: ToneMidi): ProcessedMidiData {
     const notes: ProcessedNote[] = [];
     const tracks: Array<{ name: string; notes: ProcessedNote[] }> = [];
 
     // Process each track
-    midi.tracks.forEach((track: MidiTrack, trackIndex: number) => {
+    midi.tracks.forEach((track: any, trackIndex: number) => {
       const trackNotes: ProcessedNote[] = [];
 
-      track.notes.forEach((note: MidiNote, noteIndex: number) => {
+      track.notes.forEach((note: any, noteIndex: number) => {
         const processedNote: ProcessedNote = {
           id: `${trackIndex}-${noteIndex}`,
           note: note.midi,
           noteName: note.name,
-          velocity: note.velocity,
+          // @tonejs/midi velocity is 0-1; convert to 0-127
+          velocity: Math.round((note.velocity ?? 0) * 127),
           startTime: note.time,
           endTime: note.time + note.duration,
           duration: note.duration,

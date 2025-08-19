@@ -9,6 +9,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Force @tonejs/midi to use a default-export-compatible flatten
+      'array-flatten': path.resolve(
+        __dirname,
+        './src/vendor/array-flatten-default.ts'
+      ),
     },
   },
   server: {

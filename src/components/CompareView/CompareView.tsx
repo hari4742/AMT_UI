@@ -8,6 +8,16 @@ import {
   Grid,
   Chip,
   Divider,
+  TableContainer,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  LinearProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import { CompareArrows, MusicNote, Info } from '@mui/icons-material';
 import { useAppSelector } from '@/store/hooks';
@@ -15,6 +25,11 @@ import { MidiProcessor, ProcessedMidiData } from '@/utils/midiProcessor';
 import PianoRoll from '@/components/PianoRoll/PianoRoll';
 import PlaybackControls from '@/components/PlaybackControls/PlaybackControls';
 import { useSynchronizedPianoRolls } from '@/hooks/useSynchronizedPianoRolls';
+import {
+  compareMidiData,
+  ComparisonMetricsTs,
+} from '@/utils/comparisonMetrics';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 interface CompareViewProps {
   onNoteClick?: (note: any, side: 'left' | 'right') => void;
@@ -32,6 +47,7 @@ const CompareView: React.FC<CompareViewProps> = ({ onNoteClick }) => {
     useState<ProcessedMidiData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<ComparisonMetricsTs | null>(null);
 
   // Synchronized piano roll state
   const {
@@ -69,8 +85,45 @@ const CompareView: React.FC<CompareViewProps> = ({ onNoteClick }) => {
 
         // Process original MIDI
         if (originalMidiData) {
-          const processed = await MidiProcessor.parseMidiData(originalMidiData);
-          setProcessedOriginalMidi(processed);
+          if (
+            typeof originalMidiData === 'object' &&
+            Array.isArray((originalMidiData as any).notes)
+          ) {
+            // Already processed
+            setProcessedOriginalMidi(
+              originalMidiData as unknown as ProcessedMidiData
+            );
+          } else {
+            const processed = await MidiProcessor.parseMidiData(
+              originalMidiData as any
+            );
+            setProcessedOriginalMidi(processed);
+          }
+        }
+
+        // Compute advanced metrics when both available
+        if (
+          (midiData && originalMidiData) ||
+          (processedGeneratedMidi && processedOriginalMidi)
+        ) {
+          const left =
+            processedGeneratedMidi ||
+            (midiData
+              ? await MidiProcessor.parseMidiData(midiData.midiData || midiData)
+              : null);
+          const right =
+            processedOriginalMidi ||
+            (originalMidiData
+              ? await MidiProcessor.parseMidiData(originalMidiData as any)
+              : null);
+          if (left && right) {
+            const cm = compareMidiData(left, right);
+            setMetrics(cm);
+          } else {
+            setMetrics(null);
+          }
+        } else {
+          setMetrics(null);
         }
       } catch (err) {
         console.error('Error processing MIDI data:', err);
@@ -198,7 +251,9 @@ const CompareView: React.FC<CompareViewProps> = ({ onNoteClick }) => {
           <Typography variant="body2" color="text.secondary" gutterBottom>
             Comparison Metrics
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+
+          {/* Summary Chips */}
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
             <Chip
               label={`Note Count: ${generatedNotes} vs ${originalNotes}`}
               size="small"
@@ -218,12 +273,207 @@ const CompareView: React.FC<CompareViewProps> = ({ onNoteClick }) => {
               color={durationDiff > 5 ? 'error' : 'success'}
             />
             <Chip
-              label={`Tempo: ${processedGeneratedMidi.tempo} vs ${processedOriginalMidi.tempo} BPM`}
+              label={`Tempo: ${processedGeneratedMidi.tempo.toFixed(
+                2
+              )} vs ${processedOriginalMidi.tempo.toFixed(2)} BPM`}
               size="small"
               variant="outlined"
               color={tempoDiff > 10 ? 'error' : 'success'}
             />
           </Box>
+
+          {metrics && (
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="subtitle2">
+                  Show Detailed Metrics
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableBody>
+                      {/* Overall + Core Scores */}
+                      <TableRow>
+                        <TableCell>Overall Score</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.overallScore * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.overallScore * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>F1 Score</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.noteAccuracy * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.noteAccuracy * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Precision</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.precision * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.precision * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Recall</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.recall * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.recall * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Timing and Rhythm */}
+                      <TableRow>
+                        <TableCell>Timing Accuracy</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.timingAccuracy * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.timingAccuracy * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Rhythm Accuracy</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.rhythmAccuracy * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.rhythmAccuracy * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Velocity Accuracy</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.velocityAccuracy * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.velocityAccuracy * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Duration Accuracy</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.durationAccuracy * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.durationAccuracy * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Pitch, Density, Polyphony */}
+                      <TableRow>
+                        <TableCell>Pitch Class Similarity</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.pitchClassSimilarity * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.pitchClassSimilarity * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Density Similarity</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.densitySimilarity * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.densitySimilarity * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Polyphony Similarity</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.polyphonySimilarity * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.polyphonySimilarity * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Range Overlap</TableCell>
+                        <TableCell>
+                          <LinearProgress
+                            variant="determinate"
+                            value={metrics.rangeOverlap * 100}
+                            sx={{ height: 8, borderRadius: 5 }}
+                          />
+                          <Typography variant="caption">
+                            {(metrics.rangeOverlap * 100).toFixed(1)}%
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Matching Counts */}
+                      <TableRow>
+                        <TableCell>Matched Notes</TableCell>
+                        <TableCell>{metrics.matchedCount}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Unmatched Notes (Generated)</TableCell>
+                        <TableCell>{metrics.unmatchedGenerated}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Unmatched Notes (Reference)</TableCell>
+                        <TableCell>{metrics.unmatchedReference}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </AccordionDetails>
+            </Accordion>
+          )}
         </Box>
       </Paper>
 

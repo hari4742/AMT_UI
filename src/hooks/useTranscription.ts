@@ -5,16 +5,13 @@ import {
   setMidiData,
   setError,
 } from '@/store/slices/transcriptionSlice';
-import {
-  transcriptionAPI,
-  transcriptionWebSocket,
-  TranscriptionRequest,
-} from '@/services/api';
+import { transcriptionAPI, TranscriptionRequest } from '@/services/api';
 import { mockTranscriptionAPI } from '@/services/mockApi';
 
 // Use mock API for development (can be toggled with environment variable)
 const isDevelopment = import.meta.env.DEV;
-const api = isDevelopment ? mockTranscriptionAPI : transcriptionAPI;
+// const api = isDevelopment ? mockTranscriptionAPI : transcriptionAPI;
+const api = transcriptionAPI;
 
 export const useTranscription = () => {
   const dispatch = useAppDispatch();
@@ -27,7 +24,6 @@ export const useTranscription = () => {
   const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const wsConnectedRef = useRef(false);
 
   // Start transcription process
   const startTranscription = useCallback(
@@ -54,20 +50,6 @@ export const useTranscription = () => {
 
         if (response.success) {
           setTranscriptionId(response.transcriptionId);
-
-          // Connect WebSocket for real-time updates (only in production)
-          if (!isDevelopment) {
-            transcriptionWebSocket.connect(
-              response.transcriptionId,
-              (progress) => {
-                setProgress(progress);
-              },
-              (result) => {
-                handleTranscriptionComplete(result);
-              }
-            );
-            wsConnectedRef.current = true;
-          }
 
           // Start polling as fallback
           startPolling(response.transcriptionId);
@@ -131,11 +113,6 @@ export const useTranscription = () => {
     (result: any) => {
       stopPolling();
 
-      if (wsConnectedRef.current) {
-        transcriptionWebSocket.disconnect();
-        wsConnectedRef.current = false;
-      }
-
       if (result.success && result.result) {
         dispatch(setMidiData(result.result));
         setProgress(100);
@@ -161,11 +138,6 @@ export const useTranscription = () => {
 
     stopPolling();
 
-    if (wsConnectedRef.current) {
-      transcriptionWebSocket.disconnect();
-      wsConnectedRef.current = false;
-    }
-
     dispatch(setTranscribing(false));
     setTranscriptionId(null);
     setProgress(0);
@@ -176,9 +148,6 @@ export const useTranscription = () => {
   useEffect(() => {
     return () => {
       stopPolling();
-      if (wsConnectedRef.current) {
-        transcriptionWebSocket.disconnect();
-      }
     };
   }, [stopPolling]);
 

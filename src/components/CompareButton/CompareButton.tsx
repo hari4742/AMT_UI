@@ -19,6 +19,7 @@ import {
   setComparing,
   setComparisonError,
 } from '@/store/slices/comparisonSlice';
+import type { SelectedFileInfo } from '@/store/slices/comparisonSlice';
 import { MidiProcessor } from '@/utils/midiProcessor';
 import { useNavigate } from 'react-router-dom';
 
@@ -65,12 +66,19 @@ const CompareButton: React.FC<CompareButtonProps> = ({
           throw new Error('MIDI file size must be less than 10MB');
         }
 
-        // Process the MIDI file
+        // Read the MIDI file into ArrayBuffer and process
         const arrayBuffer = await file.arrayBuffer();
         const processedMidi = await MidiProcessor.parseMidiData(arrayBuffer);
 
-        // Store in Redux
-        dispatch(setOriginalMidiFile(file));
+        // Store serializable file info in Redux to avoid non-serializable warnings
+        const fileInfo: SelectedFileInfo = {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+        };
+        dispatch(setOriginalMidiFile(fileInfo));
+        // Store already processed, serializable MIDI data
         dispatch(setOriginalMidiData(processedMidi));
         dispatch(setComparing(true));
 
