@@ -65,7 +65,7 @@ class TranscriptionAPI {
       formData.append('options', JSON.stringify(request.options));
     }
 
-    const response = await fetch(`${this.baseURL}/transcribe`, {
+    const response = await fetch(`${this.baseURL}/transcribe/`, {
       method: 'POST',
       body: formData,
     });
