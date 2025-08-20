@@ -2,7 +2,8 @@
 // This defines the ideal backend API structure for the AMT system
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+  import.meta.env.VITE_API_BASE_URL ||
+  'https://amt-backend-production-f94d.up.railway.app/api';
 
 export interface TranscriptionRequest {
   audioFile: File;
